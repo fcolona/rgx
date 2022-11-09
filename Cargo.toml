@@ -8,6 +8,8 @@ edition = "2021"
 [dependencies]
 regex = "1"
 criterion = "0.4"
+tui = "0.19"
+crossterm = "0.25"
 
 [[bench]]
 name = "filtering_benchmark"
