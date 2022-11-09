@@ -27,10 +27,11 @@ pub mod ui {
                     .constraints([Constraint::Length(3)].as_ref())
                     .split(size);
 
-                let matched_texts = filter_by_regex(path, regex);
+                let entries = filter_by_regex(path, regex);
                 let mut items = Vec::new();
-                for item in matched_texts {
-                   items.push(ListItem::new(item));
+                for entry in entries {
+                    println!("{:#?}", entry);
+                    items.push(ListItem::new(entry.path));
                 }
 
                 let list = List::new(items)
@@ -50,33 +51,57 @@ pub mod ui {
     }
 }
 
-mod service {
+pub mod service {
     use regex::Regex;
     use std::{fs, process};
 
-    pub fn filter_by_regex(path: &String, regex: &String) -> Vec<String> {
+    #[derive(Debug)]
+    pub struct Entry {
+        pub path: String,
+        pub matched_text: Vec<String>,
+    }
+
+    impl Entry {
+        pub fn new(path: String) -> Entry {
+            Entry {
+                path,
+                matched_text: Vec::new(),
+            }
+        }
+    }
+
+    pub fn filter_by_regex(path: &String, regex: &String) -> Vec<Entry> {
         let regex = format!(r"{}", regex);
         let rgx = Regex::new(&regex).unwrap_or_else(|_err| {
             println!("ERROR: not a valid regex");
             process::exit(1)
         });
-        let mut matched_texts = Vec::new();
+        let mut entries = Vec::new();
 
         for entry in fs::read_dir(path).unwrap_or_else(|_err| {
             println!("ERROR: not a valid path");
             process::exit(1)
         }) {
             let entry_display = &entry.unwrap().path().display().to_string();
+            let mut new_entry = Entry::new(entry_display.to_owned());
+
             let dirs: Vec<&str> = entry_display.split("/").collect();
             let current_sub_dir = dirs.get(dirs.len() - 1).unwrap();
 
             let does_it_contain_filtered_text = rgx.is_match(current_sub_dir);
             if does_it_contain_filtered_text {
-                matched_texts.push(entry_display.to_owned());
+                let captures = rgx.captures(current_sub_dir).unwrap();
+
+                for capture in captures.iter() {
+                    new_entry.matched_text.push(capture.unwrap().as_str().to_owned());
+                }
+                entries.push(new_entry);
+            }else {
+                entries.push(new_entry)
             }
             //println!("{:?} --- {:?}", entry_display, does_it_contain_filtered_text);
         }
 
-        return matched_texts;
+        return entries;
     }
 }

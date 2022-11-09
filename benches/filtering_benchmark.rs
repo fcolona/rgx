@@ -1,4 +1,4 @@
-use rgx::filter_by_regex;
+use rgx::service::filter_by_regex;
 use criterion::{
     criterion_group,
     criterion_main,
