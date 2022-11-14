@@ -1,5 +1,4 @@
 use std::{io, env, process};
-use crossterm::style::{self, style};
 use rgx::ui::start_ui;
 
 fn main() -> Result<(), io::Error> {

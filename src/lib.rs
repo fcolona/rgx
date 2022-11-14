@@ -1,20 +1,18 @@
 pub mod ui {
     use crate::service::filter_by_regex;
+    use regex::Regex;
     use std::io;
     use tui::{
         backend::CrosstermBackend,
-        layout::{Alignment, Constraint, Direction, Layout},
+        layout::{Constraint, Direction, Layout},
         style::{Color, Modifier, Style},
         text::{Span, Spans},
-        widgets::{
-            Block, BorderType, Borders, Cell, List, ListItem, ListState, Paragraph, Row, Table,
-            Tabs,
-        },
+        widgets::{Block, Borders, List, ListItem, ListState},
         Terminal,
     };
 
     pub fn start_ui(path: &String, regex: &String) -> Result<(), io::Error> {
-        let mut stdout = io::stdout();
+        let stdout = io::stdout();
         let backend = CrosstermBackend::new(stdout);
         let mut terminal = Terminal::new(backend)?;
         terminal.clear()?;
@@ -28,18 +26,70 @@ pub mod ui {
                     .split(size);
 
                 let entries = filter_by_regex(path, regex);
-                let mut items = Vec::new();
-                for entry in entries {
-                    println!("{:#?}", entry);
-                    items.push(ListItem::new(entry.path));
+                let mut items: Vec<ListItem> = Vec::new();
+
+                for entry in &entries {
+                    let mut spans_vec: Vec<Span> = Vec::new();
+
+                    if entry.matched_text.len() != 0 {
+                        let dirs: Vec<&str> = entry.path.split("/").collect();
+                        let current_sub_dir = dirs.get(dirs.len() - 1).unwrap();
+                        let precedent_dirs_array = &dirs[0..dirs.len() - 1];
+
+                        let mut path_without_current_dir = String::from("");
+                        for dir in precedent_dirs_array {
+                            path_without_current_dir.push_str(dir);
+                            path_without_current_dir.push_str("/");
+                        }
+
+                        let span_raw = Span::raw(path_without_current_dir);
+                        spans_vec.push(span_raw);
+
+                        for current_match in &entry.matched_text {
+                            let new_rgx = Regex::new(&regex).unwrap();
+                            let splits: Vec<&str> = new_rgx.split(current_sub_dir).into_iter().collect();
+
+                            let mut i = 0;
+                            while i < splits.len() - 1 {
+                                if i == 0 {
+                                    let span_raw1 = Span::raw(splits.get(i).unwrap().to_owned());
+                                    spans_vec.push(span_raw1);
+                                }
+
+                                let span_highlighted = Span::styled(
+                                    current_match,
+                                    Style::default()
+                                        .fg(Color::LightYellow)
+                                        .add_modifier(Modifier::BOLD),
+                                );
+
+                                let span_raw2 = Span::raw(splits.get(i + 1).unwrap().to_owned());
+
+                                spans_vec.push(span_highlighted);
+                                spans_vec.push(span_raw2);
+
+                                i = i + 1;
+                            }
+                        }
+                        items.push(ListItem::new(Spans::from(spans_vec)));
+                    } else {
+                        let span_raw = Span::raw(&entry.path);
+                        items.push(ListItem::new(span_raw));
+                    }
                 }
 
+                let mut state = ListState::default();
+                state.select(Some(0));
+
+                let list_block = Block::default()
+                    .borders(Borders::ALL)
+                    .title(format!("{}", regex));
                 let list = List::new(items)
-                    .block(Block::default().title("Regex").borders(Borders::ALL))
                     .style(Style::default().fg(Color::White))
-                    .highlight_style(Style::default().add_modifier(Modifier::ITALIC))
-                    .highlight_symbol(">>");
-                rect.render_widget(list, chunks[0]);
+                    .highlight_style(Style::default().bg(Color::Rgb(131, 113, 163)))
+                    .highlight_symbol("> ");
+
+                rect.render_stateful_widget(list.block(list_block), chunks[0], &mut state);
             });
         }
 
@@ -92,14 +142,28 @@ pub mod service {
             if does_it_contain_filtered_text {
                 let captures = rgx.captures(current_sub_dir).unwrap();
 
-                for capture in captures.iter() {
-                    new_entry.matched_text.push(capture.unwrap().as_str().to_owned());
+                let mut i = 0;
+                while i < captures.len() {
+                    if i == 0 {
+                        new_entry
+                            .matched_text
+                            .push(captures.get(i).unwrap().as_str().to_owned());
+                    }
+
+                    for saved_match in new_entry.matched_text.clone() {
+                        if !saved_match.contains(&captures.get(i).unwrap().as_str().to_owned()) {
+                            new_entry
+                                .matched_text
+                                .push(captures.get(i).unwrap().as_str().to_owned());
+                        }
+                    }
+
+                    i = i + 1;
                 }
                 entries.push(new_entry);
-            }else {
+            } else {
                 entries.push(new_entry)
             }
-            //println!("{:?} --- {:?}", entry_display, does_it_contain_filtered_text);
         }
 
         return entries;
