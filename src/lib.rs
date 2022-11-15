@@ -1,9 +1,12 @@
+#![allow(warnings, unused)]
+
 pub mod ui {
     use crate::service::filter_by_regex;
     use regex::Regex;
-    use std::io;
+    use std::{io, io::Write, thread, time::Duration};
+    use termion::{event::Key, input::TermRead, raw::IntoRawMode};
     use tui::{
-        backend::CrosstermBackend,
+        backend::TermionBackend,
         layout::{Constraint, Direction, Layout},
         style::{Color, Modifier, Style},
         text::{Span, Spans},
@@ -12,14 +15,44 @@ pub mod ui {
     };
 
     pub fn start_ui(path: &String, regex: &String) -> Result<(), io::Error> {
-        let stdout = io::stdout();
-        let backend = CrosstermBackend::new(stdout);
+        let mut stdout = io::stdout().into_raw_mode()?;
+        let backend = TermionBackend::new(stdout);
         let mut terminal = Terminal::new(backend)?;
-        terminal.clear()?;
+
+        let mut stdout = io::stdout().into_raw_mode()?;
 
         let new_rgx = Regex::new(&regex).unwrap();
 
+        let mut stdin = termion::async_stdin().keys();
+        let mut s = String::new();
+
+        let mut current_item_index = 0;
+
         loop {
+            let input = stdin.next();
+
+            let entries = filter_by_regex(path, regex);
+
+            let mut state = ListState::default();
+            state.select(Some((current_item_index)));
+
+            if let Some(Ok(key)) = input {
+                match key {
+                    Key::Char('q') => break,
+                    Key::Char('j') => {
+                        if current_item_index + 1 < entries.len() - 1 {
+                            current_item_index = current_item_index + 1
+                        }
+                    },
+                    Key::Char('k') => {
+                        if current_item_index > 0 {
+                            current_item_index = current_item_index - 1
+                        }
+                    },
+                    _ => {stdout.lock().flush().unwrap()}
+                }
+            }
+
             terminal.draw(|rect| {
                 let size = rect.size();
                 let chunks = Layout::default()
@@ -27,7 +60,6 @@ pub mod ui {
                     .constraints([Constraint::Length(3)].as_ref())
                     .split(size);
 
-                let entries = filter_by_regex(path, regex);
                 let mut items: Vec<ListItem> = Vec::new();
 
                 for entry in &entries {
@@ -48,7 +80,8 @@ pub mod ui {
                         spans_vec.push(span_raw);
 
                         for current_match in &entry.matched_text {
-                            let splits: Vec<&str> = new_rgx.split(current_sub_dir).into_iter().collect();
+                            let splits: Vec<&str> =
+                                new_rgx.split(current_sub_dir).into_iter().collect();
 
                             let mut i = 0;
                             while i < splits.len() - 1 {
@@ -79,9 +112,6 @@ pub mod ui {
                     }
                 }
 
-                let mut state = ListState::default();
-                state.select(Some(0));
-
                 let list_block = Block::default()
                     .borders(Borders::ALL)
                     .title(format!("{}", regex));
@@ -96,7 +126,7 @@ pub mod ui {
 
         terminal.clear()?;
         terminal.show_cursor()?;
-        crossterm::terminal::disable_raw_mode()?;
+        //terminal::disable_raw_mode()?;
 
         return Ok(());
     }
