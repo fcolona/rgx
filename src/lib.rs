@@ -17,6 +17,8 @@ pub mod ui {
         let mut terminal = Terminal::new(backend)?;
         terminal.clear()?;
 
+        let new_rgx = Regex::new(&regex).unwrap();
+
         loop {
             terminal.draw(|rect| {
                 let size = rect.size();
@@ -46,7 +48,6 @@ pub mod ui {
                         spans_vec.push(span_raw);
 
                         for current_match in &entry.matched_text {
-                            let new_rgx = Regex::new(&regex).unwrap();
                             let splits: Vec<&str> = new_rgx.split(current_sub_dir).into_iter().collect();
 
                             let mut i = 0;
