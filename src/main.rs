@@ -1,5 +1,5 @@
 use std::{io, env, process};
-use rgx::ui::start_ui;
+use rgx::ui::setup;
 
 fn main() -> Result<(), io::Error> {
     let args: Vec<String> = env::args().collect();
@@ -12,6 +12,6 @@ fn main() -> Result<(), io::Error> {
     let regex = &args[1];
     let path = &args[2];
 
-    let result = start_ui(path, regex);    
+    let result = setup(path, regex);    
     return result;
 }

@@ -3,8 +3,12 @@
 pub mod ui {
     use crate::service::filter_by_regex;
     use regex::Regex;
-    use std::{io, io::Write, thread, time::Duration};
-    use termion::{event::Key, input::TermRead, raw::IntoRawMode};
+    use std::{fs, io, io::stdout, io::Stdout, io::Write, thread, time::Duration};
+    use termion::{
+        event::Key,
+        input::TermRead,
+        raw::{IntoRawMode, RawTerminal},
+    };
     use tui::{
         backend::TermionBackend,
         layout::{Constraint, Direction, Layout},
@@ -13,33 +17,38 @@ pub mod ui {
         widgets::{Block, Borders, List, ListItem, ListState},
         Terminal,
     };
-
-    pub fn start_ui(path: &String, regex: &String) -> Result<(), io::Error> {
+    pub fn setup(path: &String, regex: &String) -> Result<(), io::Error> {
         let mut stdout = io::stdout().into_raw_mode()?;
         let backend = TermionBackend::new(stdout);
         let mut terminal = Terminal::new(backend)?;
         let mut stdout = io::stdout().into_raw_mode()?;
 
+        return start_ui(path, regex, terminal, stdout);
+    }
+
+    pub fn start_ui(
+        path: &String,
+        regex: &String,
+        mut terminal: Terminal<TermionBackend<RawTerminal<Stdout>>>,
+        stdout: RawTerminal<Stdout>,
+    ) -> Result<(), io::Error> {
         let entries = filter_by_regex(path, regex);
         let new_rgx = Regex::new(&regex).unwrap();
 
+        //This hole block is to highlight the matches
         let mut items: Vec<ListItem> = Vec::new();
+
+        let go_back_span = Span::raw("(..)");
+        items.push(ListItem::new(go_back_span));
+
         for entry in &entries {
             let mut spans_vec: Vec<Span> = Vec::new();
+            let dirs: Vec<&str> = entry.path.split("/").collect();
+            let current_sub_dir = dirs.get(dirs.len() - 1).unwrap();
+            let precedent_dir = dirs.get(dirs.len() - 2).unwrap();
 
+            let span_raw = Span::raw(format!("/{}/", precedent_dir));
             if entry.matched_text.len() != 0 {
-                let dirs: Vec<&str> = entry.path.split("/").collect();
-
-                let current_sub_dir = dirs.get(dirs.len() - 1).unwrap();
-                let precedent_dirs_array = &dirs[0..dirs.len() - 1];
-
-                let mut path_without_current_dir = String::from("");
-                for dir in precedent_dirs_array {
-                    path_without_current_dir.push_str(dir);
-                    path_without_current_dir.push_str("/");
-                }
-
-                let span_raw = Span::raw(path_without_current_dir);
                 spans_vec.push(span_raw);
 
                 for current_match in &entry.matched_text {
@@ -51,7 +60,6 @@ pub mod ui {
                             let span_raw1 = Span::raw(splits.get(i).unwrap().to_owned());
                             spans_vec.push(span_raw1);
                         }
-
                         let span_highlighted = Span::styled(
                             current_match,
                             Style::default()
@@ -69,35 +77,64 @@ pub mod ui {
                 }
                 items.push(ListItem::new(Spans::from(spans_vec)));
             } else {
-                let span_raw = Span::raw(&entry.path);
-                items.push(ListItem::new(span_raw));
+                let span_raw = Span::raw(format!("/{}/{}", precedent_dir, current_sub_dir));
+                items.push(ListItem::new(span_raw))
             }
         }
 
         let mut stdin = termion::async_stdin().keys();
         let mut s = String::new();
 
-        let mut current_item_index = 0;
+        let mut state = ListState::default();
+        state.select(Some(1));
         loop {
             let input = stdin.next();
-
-            let mut state = ListState::default();
-            state.select(Some((current_item_index)));
 
             if let Some(Ok(key)) = input {
                 match key {
                     Key::Char('q') => break,
                     Key::Char('j') => {
-                        if current_item_index + 1 < entries.len() - 1 {
-                            current_item_index = current_item_index + 1
+                        if state.selected().unwrap() < entries.len() {
+                            state.select(Some(state.selected().unwrap() + 1));
                         }
                     }
                     Key::Char('k') => {
-                        if current_item_index > 0 {
-                            current_item_index = current_item_index - 1
+                        if state.selected().unwrap() > 0 {
+                            state.select(Some(state.selected().unwrap() - 1));
                         }
                     }
-                    _ => stdout.lock().flush().unwrap(),
+                    Key::Char('g') => {
+                        state.select(Some(0));
+                    }
+                    Key::Char('l') => {
+                        if (state.selected().unwrap()) == 0 {
+                            drop(stdin);
+
+                            let full_path = &entries.get(state.selected().unwrap()).unwrap().path;
+
+                            let dirs: Vec<&str> = full_path.split("/").collect();
+
+                            let current_sub_dir = dirs.get(dirs.len() - 1).unwrap();
+                            let precedent_dirs_array = &dirs[0..dirs.len() - 2];
+
+                            let mut path_without_current_dir = String::from("");
+                            for dir in precedent_dirs_array {
+                                path_without_current_dir.push_str(dir);
+                                path_without_current_dir.push_str("/");
+                            }
+
+                            return start_ui(&path_without_current_dir, regex, terminal, stdout);
+                        } else {
+                            let selected_entry = entries.get(state.selected().unwrap() - 1).unwrap();
+
+                            if selected_entry.is_a_directory {
+                                drop(stdin);
+
+                                return start_ui(&selected_entry.path, regex, terminal, stdout);
+                            }
+                        }
+                    }
+                    _ => {}
                 }
             }
 
@@ -138,13 +175,15 @@ pub mod service {
     pub struct Entry {
         pub path: String,
         pub matched_text: Vec<String>,
+        pub is_a_directory: bool,
     }
 
     impl Entry {
-        pub fn new(path: String) -> Entry {
+        pub fn new(path: String, is_a_directory: bool) -> Entry {
             Entry {
                 path,
                 matched_text: Vec::new(),
+                is_a_directory,
             }
         }
     }
@@ -162,10 +201,15 @@ pub mod service {
             process::exit(1)
         }) {
             let entry_display = &entry.unwrap().path().display().to_string();
-            let mut new_entry = Entry::new(entry_display.to_owned());
+            let mut new_entry = Entry::new(entry_display.to_owned(), false);
 
             let dirs: Vec<&str> = entry_display.split("/").collect();
             let current_sub_dir = dirs.get(dirs.len() - 1).unwrap();
+
+            let metadata = fs::metadata(path).unwrap();
+            if metadata.is_dir() == true {
+                new_entry.is_a_directory = true;
+            }
 
             let does_it_contain_filtered_text = rgx.is_match(current_sub_dir);
             if does_it_contain_filtered_text {
