@@ -4,7 +4,7 @@
 //TODO: Learn about callbacks in rust
 //TODO: try to understand why first key press after reloading ui 'bugs'
 pub mod ui {
-    use crate::service::filter_by_regex;
+    use crate::service::{filter_by_regex, remove_dashes};
     use regex::Regex;
     use std::{fs, io, io::stdout, io::Stdout, io::Write, thread, time::Duration};
     use termion::{
@@ -65,15 +65,17 @@ pub mod ui {
                             spans_vec.push(span_raw1);
                         }
 
-                        let span_highlighted1 = Span::styled(
-                            current_match,
-                            Style::default()
-                                .fg(Color::LightYellow)
-                                .add_modifier(Modifier::BOLD),
-                        );
-                        spans_vec.push(span_highlighted1);
+                       if !splits.get(i).unwrap().eq(&"-") {
+                            let span_highlighted1 = Span::styled(
+                                current_match,
+                                Style::default()
+                                    .fg(Color::LightYellow)
+                                    .add_modifier(Modifier::BOLD),
+                            );
+                            spans_vec.push(span_highlighted1);
+                        } 
 
-                        let span_raw2 = Span::raw(splits.get(i + 1).unwrap().to_owned());
+                        let span_raw2 = Span::raw(remove_dashes(&splits.get(i + 1).unwrap().to_string()));
                         spans_vec.push(span_raw2);
 
                         i = i + 1;
@@ -205,6 +207,17 @@ pub mod service {
         }
     }
 
+    pub fn remove_dashes(string: &String) -> String {
+        let mut string_builder = String::from("");
+
+        for char in string.chars() {
+            if !char.eq(&'-') {
+                string_builder.push(char);
+            }
+        }
+        return string_builder;
+    }
+
     pub fn filter_by_regex(path: &String, regex: &String) -> Vec<Entry> {
         let regex = format!(r"{}", regex);
         let rgx = Regex::new(&regex).unwrap_or_else(|_err| {
@@ -236,6 +249,7 @@ pub mod service {
 
             let does_it_contain_filtered_text = rgx.is_match(current_sub_dir);
             if does_it_contain_filtered_text {
+                let current_sub_dir = remove_dashes(&current_sub_dir.to_string());
                 let captures = rgx.captures(&current_sub_dir).unwrap();
 
                 let mut i = 0;

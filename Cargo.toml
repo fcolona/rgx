@@ -10,6 +10,7 @@ regex = "1"
 criterion = "0.4"
 termion = "1.5"
 tui = { version = "0.19", default-features = false, features = ['termion'] }
+unicode-segmentation = "1.7.1"
 
 [[bench]]
 name = "filtering_benchmark"

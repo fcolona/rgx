@@ -444,6 +444,7 @@ dependencies = [
  "regex",
  "termion",
  "tui",
+ "unicode-segmentation",
 ]
 
 [[package]]
