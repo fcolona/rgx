@@ -1,5 +1,8 @@
+#![feature(io_error_more)]
 #![allow(warnings, unused)]
 
+//TODO: Learn about callbacks in rust
+//TODO: try to understand why first key press after reloading ui 'bugs'
 pub mod ui {
     use crate::service::filter_by_regex;
     use regex::Regex;
@@ -48,6 +51,7 @@ pub mod ui {
             let precedent_dir = dirs.get(dirs.len() - 2).unwrap();
 
             let span_raw = Span::raw(format!("/{}/", precedent_dir));
+
             if entry.matched_text.len() != 0 {
                 spans_vec.push(span_raw);
 
@@ -60,20 +64,30 @@ pub mod ui {
                             let span_raw1 = Span::raw(splits.get(i).unwrap().to_owned());
                             spans_vec.push(span_raw1);
                         }
-                        let span_highlighted = Span::styled(
+
+                        let span_highlighted1 = Span::styled(
                             current_match,
                             Style::default()
                                 .fg(Color::LightYellow)
                                 .add_modifier(Modifier::BOLD),
                         );
+                        spans_vec.push(span_highlighted1);
 
                         let span_raw2 = Span::raw(splits.get(i + 1).unwrap().to_owned());
-
-                        spans_vec.push(span_highlighted);
                         spans_vec.push(span_raw2);
 
                         i = i + 1;
                     }
+                }
+
+                if entry.does_content_have_matches {
+                    let span_highlighted2 = Span::styled(
+                        " *",
+                        Style::default()
+                            .fg(Color::Rgb(255, 93, 98))
+                            .add_modifier(Modifier::BOLD),
+                    );
+                    spans_vec.push(span_highlighted2);
                 }
                 items.push(ListItem::new(Spans::from(spans_vec)));
             } else {
@@ -125,7 +139,8 @@ pub mod ui {
 
                             return start_ui(&path_without_current_dir, regex, terminal, stdout);
                         } else {
-                            let selected_entry = entries.get(state.selected().unwrap() - 1).unwrap();
+                            let selected_entry =
+                                entries.get(state.selected().unwrap() - 1).unwrap();
 
                             if selected_entry.is_a_directory {
                                 drop(stdin);
@@ -169,21 +184,23 @@ pub mod ui {
 
 pub mod service {
     use regex::Regex;
-    use std::{fs, process};
+    use std::{fs, io::ErrorKind, process};
 
     #[derive(Debug)]
     pub struct Entry {
         pub path: String,
         pub matched_text: Vec<String>,
         pub is_a_directory: bool,
+        pub does_content_have_matches: bool,
     }
 
     impl Entry {
-        pub fn new(path: String, is_a_directory: bool) -> Entry {
+        pub fn new(path: String, is_a_directory: bool, does_content_have_matches: bool) -> Entry {
             Entry {
                 path,
                 matched_text: Vec::new(),
                 is_a_directory,
+                does_content_have_matches,
             }
         }
     }
@@ -201,19 +218,25 @@ pub mod service {
             process::exit(1)
         }) {
             let entry_display = &entry.unwrap().path().display().to_string();
-            let mut new_entry = Entry::new(entry_display.to_owned(), false);
+            let mut new_entry = Entry::new(entry_display.to_owned(), false, false);
 
             let dirs: Vec<&str> = entry_display.split("/").collect();
             let current_sub_dir = dirs.get(dirs.len() - 1).unwrap();
 
-            let metadata = fs::metadata(path).unwrap();
-            if metadata.is_dir() == true {
-                new_entry.is_a_directory = true;
+            let content = fs::read_to_string(entry_display).unwrap_or_else(|err| {
+                if err.kind().eq(&ErrorKind::IsADirectory) {
+                    new_entry.is_a_directory = true
+                }
+                return String::from("");
+            });
+
+            if rgx.is_match(&content) {
+                new_entry.does_content_have_matches = true
             }
 
             let does_it_contain_filtered_text = rgx.is_match(current_sub_dir);
             if does_it_contain_filtered_text {
-                let captures = rgx.captures(current_sub_dir).unwrap();
+                let captures = rgx.captures(&current_sub_dir).unwrap();
 
                 let mut i = 0;
                 while i < captures.len() {
