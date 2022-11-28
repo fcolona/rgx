@@ -25,17 +25,19 @@ pub mod ui {
         let backend = TermionBackend::new(stdout);
         let mut terminal = Terminal::new(backend)?;
         let mut stdout = io::stdout().into_raw_mode()?;
+        let show_hidden_files = false;
 
-        return start_ui(path, regex, terminal, stdout);
+        return start_ui(path, regex, show_hidden_files, terminal, stdout);
     }
 
     pub fn start_ui(
         path: &String,
         regex: &String,
+        show_hidden_files: bool,
         mut terminal: Terminal<TermionBackend<RawTerminal<Stdout>>>,
         stdout: RawTerminal<Stdout>,
     ) -> Result<(), io::Error> {
-        let entries = filter_by_regex(path, regex);
+        let entries = filter_by_regex(path, regex, show_hidden_files);
         let new_rgx = Regex::new(&regex).unwrap();
 
         //This hole block is to highlight the matches
@@ -65,7 +67,7 @@ pub mod ui {
                             spans_vec.push(span_raw1);
                         }
 
-                       if !splits.get(i).unwrap().eq(&"-") {
+                        if !splits.get(i).unwrap().eq(&"-") {
                             let span_highlighted1 = Span::styled(
                                 current_match,
                                 Style::default()
@@ -73,9 +75,10 @@ pub mod ui {
                                     .add_modifier(Modifier::BOLD),
                             );
                             spans_vec.push(span_highlighted1);
-                        } 
+                        }
 
-                        let span_raw2 = Span::raw(remove_dashes(&splits.get(i + 1).unwrap().to_string()));
+                        let span_raw2 =
+                            Span::raw(remove_dashes(&splits.get(i + 1).unwrap().to_string()));
                         spans_vec.push(span_raw2);
 
                         i = i + 1;
@@ -139,7 +142,13 @@ pub mod ui {
                                 path_without_current_dir.push_str("/");
                             }
 
-                            return start_ui(&path_without_current_dir, regex, terminal, stdout);
+                            return start_ui(
+                                &path_without_current_dir,
+                                regex,
+                                show_hidden_files,
+                                terminal,
+                                stdout,
+                            );
                         } else {
                             let selected_entry =
                                 entries.get(state.selected().unwrap() - 1).unwrap();
@@ -147,9 +156,44 @@ pub mod ui {
                             if selected_entry.is_a_directory {
                                 drop(stdin);
 
-                                return start_ui(&selected_entry.path, regex, terminal, stdout);
+                                return start_ui(
+                                    &selected_entry.path,
+                                    regex,
+                                    show_hidden_files,
+                                    terminal,
+                                    stdout,
+                                );
                             }
                         }
+                    }
+                    Key::Char('h') => {
+                        drop(stdin);
+
+                        let full_path = &entries.get(state.selected().unwrap()).unwrap().path;
+
+                        let dirs: Vec<&str> = full_path.split("/").collect();
+
+                        let current_sub_dir = dirs.get(dirs.len() - 1).unwrap();
+                        let precedent_dirs_array = &dirs[0..dirs.len() - 2];
+
+                        let mut path_without_current_dir = String::from("");
+                        for dir in precedent_dirs_array {
+                            path_without_current_dir.push_str(dir);
+                            path_without_current_dir.push_str("/");
+                        }
+
+                        return start_ui(
+                            &path_without_current_dir,
+                            regex,
+                            show_hidden_files,
+                            terminal,
+                            stdout,
+                        );
+                    }
+                    Key::Ctrl('h') => {
+                        drop(stdin);
+
+                        return start_ui(path, regex, !show_hidden_files, terminal, stdout);
                     }
                     _ => {}
                 }
@@ -218,7 +262,7 @@ pub mod service {
         return string_builder;
     }
 
-    pub fn filter_by_regex(path: &String, regex: &String) -> Vec<Entry> {
+    pub fn filter_by_regex(path: &String, regex: &String, show_hidden_files: bool) -> Vec<Entry> {
         let regex = format!(r"{}", regex);
         let rgx = Regex::new(&regex).unwrap_or_else(|_err| {
             println!("ERROR: not a valid regex");
@@ -231,48 +275,95 @@ pub mod service {
             process::exit(1)
         }) {
             let entry_display = &entry.unwrap().path().display().to_string();
-            let mut new_entry = Entry::new(entry_display.to_owned(), false, false);
-
             let dirs: Vec<&str> = entry_display.split("/").collect();
             let current_sub_dir = dirs.get(dirs.len() - 1).unwrap();
 
-            let content = fs::read_to_string(entry_display).unwrap_or_else(|err| {
-                if err.kind().eq(&ErrorKind::IsADirectory) {
-                    new_entry.is_a_directory = true
-                }
-                return String::from("");
-            });
+            if show_hidden_files == true {
+                let mut new_entry = Entry::new(entry_display.to_owned(), false, false);
 
-            if rgx.is_match(&content) {
-                new_entry.does_content_have_matches = true
-            }
-
-            let does_it_contain_filtered_text = rgx.is_match(current_sub_dir);
-            if does_it_contain_filtered_text {
-                let current_sub_dir = remove_dashes(&current_sub_dir.to_string());
-                let captures = rgx.captures(&current_sub_dir).unwrap();
-
-                let mut i = 0;
-                while i < captures.len() {
-                    if i == 0 {
-                        new_entry
-                            .matched_text
-                            .push(captures.get(i).unwrap().as_str().to_owned());
+                let content = fs::read_to_string(entry_display).unwrap_or_else(|err| {
+                    if err.kind().eq(&ErrorKind::IsADirectory) {
+                        new_entry.is_a_directory = true
                     }
+                    return String::from("");
+                });
 
-                    for saved_match in new_entry.matched_text.clone() {
-                        if !saved_match.contains(&captures.get(i).unwrap().as_str().to_owned()) {
+                if rgx.is_match(&content) {
+                    new_entry.does_content_have_matches = true
+                }
+
+                let does_it_contain_filtered_text = rgx.is_match(current_sub_dir);
+                if does_it_contain_filtered_text {
+                    let current_sub_dir = remove_dashes(&current_sub_dir.to_string());
+                    let captures = rgx.captures(&current_sub_dir).unwrap();
+
+                    let mut i = 0;
+                    while i < captures.len() {
+                        if i == 0 {
                             new_entry
                                 .matched_text
                                 .push(captures.get(i).unwrap().as_str().to_owned());
                         }
+
+                        for saved_match in new_entry.matched_text.clone() {
+                            if !saved_match.contains(&captures.get(i).unwrap().as_str().to_owned())
+                            {
+                                new_entry
+                                    .matched_text
+                                    .push(captures.get(i).unwrap().as_str().to_owned());
+                            }
+                        }
+
+                        i = i + 1;
+                    }
+                    entries.push(new_entry);
+                } else {
+                    entries.push(new_entry)
+                }
+            } else {
+                if !current_sub_dir.chars().nth(0).unwrap().eq(&'.') {
+                    let mut new_entry = Entry::new(entry_display.to_owned(), false, false);
+                    let content = fs::read_to_string(entry_display).unwrap_or_else(|err| {
+                        if err.kind().eq(&ErrorKind::IsADirectory) {
+                            new_entry.is_a_directory = true
+                        }
+                        return String::from("");
+                    });
+
+                    if rgx.is_match(&content) {
+                        new_entry.does_content_have_matches = true
                     }
 
-                    i = i + 1;
+                    let does_it_contain_filtered_text = rgx.is_match(current_sub_dir);
+                    if does_it_contain_filtered_text {
+                        let current_sub_dir = remove_dashes(&current_sub_dir.to_string());
+                        let captures = rgx.captures(&current_sub_dir).unwrap();
+
+                        let mut i = 0;
+                        while i < captures.len() {
+                            if i == 0 {
+                                new_entry
+                                    .matched_text
+                                    .push(captures.get(i).unwrap().as_str().to_owned());
+                            }
+
+                            for saved_match in new_entry.matched_text.clone() {
+                                if !saved_match
+                                    .contains(&captures.get(i).unwrap().as_str().to_owned())
+                                {
+                                    new_entry
+                                        .matched_text
+                                        .push(captures.get(i).unwrap().as_str().to_owned());
+                                }
+                            }
+
+                            i = i + 1;
+                        }
+                        entries.push(new_entry);
+                    } else {
+                        entries.push(new_entry)
+                    }
                 }
-                entries.push(new_entry);
-            } else {
-                entries.push(new_entry)
             }
         }
 
