@@ -1,5 +1,5 @@
 use crate::service::{filter_by_regex, remove_dashes};
-use regex::Regex;
+use regex::{Captures, Regex};
 use std::{fs, io, io::stdout, io::Stdout, io::Write, thread, time::Duration};
 use termion::{
     event::Key,
@@ -11,7 +11,7 @@ use tui::{
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Span, Spans},
-    widgets::{Block, Borders, List, ListItem, ListState},
+    widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
     Terminal,
 };
 pub fn setup(path: &String, regex: &String) -> Result<(), io::Error> {
@@ -78,8 +78,7 @@ pub fn start_ui(
                     i = i + 1;
                 }
             }
-
-            if entry.does_content_have_matches {
+            if !entry.content_matches.is_empty() {
                 let span_highlighted2 = Span::styled(
                     " *",
                     Style::default()
@@ -91,7 +90,18 @@ pub fn start_ui(
             items.push(ListItem::new(Spans::from(spans_vec)));
         } else {
             let span_raw = Span::raw(format!("/{}/{}", precedent_dir, current_sub_dir));
-            items.push(ListItem::new(span_raw))
+            spans_vec.push(span_raw);
+
+            if !entry.content_matches.is_empty() {
+                let span_highlighted2 = Span::styled(
+                    " *",
+                    Style::default()
+                        .fg(Color::Rgb(255, 93, 98))
+                        .add_modifier(Modifier::BOLD),
+                );
+                spans_vec.push(span_highlighted2);
+            }
+            items.push(ListItem::new(Spans::from(spans_vec)))
         }
     }
 
@@ -100,6 +110,37 @@ pub fn start_ui(
 
     let mut state = ListState::default();
     state.select(Some(1));
+
+    let selected_entry = entries.get(state.selected().unwrap() - 1).unwrap();
+    let mut spans_vec: Vec<Span> = Vec::new();
+    let splits: Vec<&str> = new_rgx.split(&selected_entry.content).into_iter().collect();
+
+    let mut i = 0;
+    while i < splits.len() - 1 {
+        let span_raw1 = Span::raw(splits.get(i).unwrap().to_owned());
+        spans_vec.push(span_raw1);
+
+        let span_highlighted1 = Span::styled(
+            selected_entry.content_matches.get(i).unwrap(),
+            Style::default()
+                .fg(Color::LightYellow)
+                .add_modifier(Modifier::BOLD),
+        );
+        spans_vec.push(span_highlighted1);
+
+        let span_raw2 = Span::raw(splits.get(i + 1).unwrap().to_owned());
+        spans_vec.push(span_raw2);
+
+        i = i + 1;
+    }
+
+    let text = vec![Spans::from(spans_vec)];
+
+    let mut paragraph = Paragraph::new(text)
+        .block(Block::default().title("Preview").borders(Borders::ALL))
+        .style(Style::default().fg(Color::White).bg(Color::Black))
+        .wrap(Wrap { trim: true });
+
     loop {
         let input = stdin.next();
 
@@ -109,11 +150,77 @@ pub fn start_ui(
                 Key::Char('j') => {
                     if state.selected().unwrap() < entries.len() {
                         state.select(Some(state.selected().unwrap() + 1));
+
+                        let selected_entry = entries.get(state.selected().unwrap() - 1).unwrap();
+
+                        if !selected_entry.is_a_directory {
+                            let splits: Vec<&str> = new_rgx.split(&selected_entry.content).into_iter().collect();
+                            let mut spans_vec: Vec<Span> = Vec::new();
+
+                            let mut i = 0;
+                            while i < splits.len() - 1 {
+                                let span_raw1 = Span::raw(splits.get(i).unwrap().to_owned());
+                                spans_vec.push(span_raw1);
+
+                                let span_highlighted1 = Span::styled(
+                                    selected_entry.content_matches.get(i).unwrap(),
+                                    Style::default()
+                                        .fg(Color::LightYellow)
+                                        .add_modifier(Modifier::BOLD),
+                                );
+                                spans_vec.push(span_highlighted1);
+
+                                let span_raw2 = Span::raw(splits.get(i + 1).unwrap().to_owned());
+                                spans_vec.push(span_raw2);
+
+                                i = i + 1;
+                            }
+
+                            let text = vec![Spans::from(spans_vec)];
+
+                            paragraph = Paragraph::new(text)
+                                .block(Block::default().title("Preview").borders(Borders::ALL))
+                                .style(Style::default().fg(Color::White).bg(Color::Black))
+                                .wrap(Wrap { trim: true });
+                        }
                     }
                 }
                 Key::Char('k') => {
-                    if state.selected().unwrap() > 0 {
+                    if state.selected().unwrap() > 1 {
                         state.select(Some(state.selected().unwrap() - 1));
+
+                        let selected_entry = entries.get(state.selected().unwrap() - 1).unwrap();
+
+                        if !selected_entry.is_a_directory {
+                            let splits: Vec<&str> = new_rgx.split(&selected_entry.content).into_iter().collect();
+                            let mut spans_vec: Vec<Span> = Vec::new();
+
+                            let mut i = 0;
+                            while i < splits.len() - 1 {
+                                let span_raw1 = Span::raw(splits.get(i).unwrap().to_owned());
+                                spans_vec.push(span_raw1);
+
+                                let span_highlighted1 = Span::styled(
+                                    selected_entry.content_matches.get(i).unwrap(),
+                                    Style::default()
+                                        .fg(Color::LightYellow)
+                                        .add_modifier(Modifier::BOLD),
+                                );
+                                spans_vec.push(span_highlighted1);
+
+                                let span_raw2 = Span::raw(splits.get(i + 1).unwrap().to_owned());
+                                spans_vec.push(span_raw2);
+
+                                i = i + 1;
+                            }
+
+                            let text = vec![Spans::from(spans_vec)];
+
+                            paragraph = Paragraph::new(text)
+                                .block(Block::default().title("Preview").borders(Borders::ALL))
+                                .style(Style::default().fg(Color::White).bg(Color::Black))
+                                .wrap(Wrap { trim: true });
+                        }
                     }
                 }
                 Key::Char('g') => {
@@ -205,11 +312,12 @@ pub fn start_ui(
 
             let size = rect.size();
             let chunks = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([Constraint::Length(3)].as_ref())
+                .direction(Direction::Horizontal)
+                .constraints([Constraint::Ratio(4, 7), Constraint::Ratio(3, 7)].as_ref())
                 .split(size);
 
             rect.render_stateful_widget(list.block(list_block), chunks[0], &mut state);
+            rect.render_widget(paragraph.clone(), chunks[1]);
         });
     }
 

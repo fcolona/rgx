@@ -1,21 +1,23 @@
-use regex::Regex;
-use std::{fs, io::ErrorKind, process};
+use regex::{Captures, Regex};
+use std::{fmt::format, fs, io::ErrorKind, process};
 
 #[derive(Debug)]
 pub struct Entry {
     pub path: String,
     pub matched_text: Vec<String>,
     pub is_a_directory: bool,
-    pub does_content_have_matches: bool,
+    pub content: String,
+    pub content_matches: Vec<String>,
 }
 
 impl Entry {
-    pub fn new(path: String, is_a_directory: bool, does_content_have_matches: bool) -> Entry {
+    pub fn new(path: String, is_a_directory: bool) -> Entry {
         Entry {
             path,
             matched_text: Vec::new(),
             is_a_directory,
-            does_content_have_matches,
+            content: String::from(""),
+            content_matches: Vec::new(),
         }
     }
 }
@@ -44,12 +46,11 @@ pub fn filter_by_regex(path: &String, regex: &String, show_hidden_files: bool) -
         process::exit(1)
     }) {
         let entry_display = &entry.unwrap().path().display().to_string();
+        let mut new_entry = Entry::new(entry_display.to_owned(), false);
         let dirs: Vec<&str> = entry_display.split("/").collect();
         let current_sub_dir = dirs.get(dirs.len() - 1).unwrap();
 
         if show_hidden_files == true {
-            let mut new_entry = Entry::new(entry_display.to_owned(), false, false);
-
             let content = fs::read_to_string(entry_display).unwrap_or_else(|err| {
                 if err.kind().eq(&ErrorKind::IsADirectory) {
                     new_entry.is_a_directory = true
@@ -57,8 +58,16 @@ pub fn filter_by_regex(path: &String, regex: &String, show_hidden_files: bool) -
                 return String::from("");
             });
 
-            if rgx.is_match(&content) {
-                new_entry.does_content_have_matches = true
+            if content != "" {
+                let content = content.replace('\n', "");
+
+                new_entry.content = content;
+                let captures_iter = rgx.captures_iter(&new_entry.content);
+                for capture in captures_iter {
+                    new_entry
+                        .content_matches
+                        .push(capture.get(0).unwrap().as_str().to_owned());
+                }
             }
 
             let does_it_contain_filtered_text = rgx.is_match(current_sub_dir);
@@ -90,7 +99,6 @@ pub fn filter_by_regex(path: &String, regex: &String, show_hidden_files: bool) -
             }
         } else {
             if !current_sub_dir.chars().nth(0).unwrap().eq(&'.') {
-                let mut new_entry = Entry::new(entry_display.to_owned(), false, false);
                 let content = fs::read_to_string(entry_display).unwrap_or_else(|err| {
                     if err.kind().eq(&ErrorKind::IsADirectory) {
                         new_entry.is_a_directory = true
@@ -98,8 +106,20 @@ pub fn filter_by_regex(path: &String, regex: &String, show_hidden_files: bool) -
                     return String::from("");
                 });
 
-                if rgx.is_match(&content) {
-                    new_entry.does_content_have_matches = true
+                let content = format!(r"{}", content);
+
+                if content != "" {
+                    let content = content.replace('\n', "");
+                    new_entry.content = content;
+                    let captures_iter = rgx.captures_iter(&new_entry.content);
+                    for capture in captures_iter {
+                        new_entry
+                            .content_matches
+                            .push(capture.get(0).unwrap().as_str().to_owned());
+                    }
+                }
+                if new_entry.path.eq("/home/felipe/crontab-wallpaper-shift") {
+                    //println!("{:?}", new_entry.content_matches);
                 }
 
                 let does_it_contain_filtered_text = rgx.is_match(current_sub_dir);
