@@ -1,6 +1,6 @@
 use crate::service::{filter_by_regex, remove_dashes};
 use regex::{Captures, Regex};
-use std::{fs, io, io::stdout, io::Stdout, io::Write, thread, time::Duration};
+use std::{fs, io, io::stdout, io::Stdout, io::Write, thread, time::Duration, path::PathBuf};
 use termion::{
     event::Key,
     input::TermRead,
@@ -272,8 +272,10 @@ pub fn start_ui(
                         );
                     } else {
                         let selected_entry = entries.get(state.selected().unwrap() - 1).unwrap();
+                        let full_path = &entries.get(state.selected().unwrap() - 1).unwrap().path;
+                        let is_empty = PathBuf::from(full_path).read_dir()?.next().is_none();
 
-                        if selected_entry.is_a_directory {
+                        if selected_entry.is_a_directory && !is_empty{
                             drop(stdin);
 
                             return start_ui(
@@ -317,9 +319,7 @@ pub fn start_ui(
                     while i < entries.len() {
                         let current_entry = entries.get(i).unwrap();
 
-                        if current_entry.matched_text.len() > 0
-                            || current_entry.content_matches.len() > 0
-                        {
+                        if current_entry.matched_text.len() > 0 || current_entry.content_matches.len() > 0 {
                             state.select(Some(i + 1));
 
                             if !current_entry.is_a_directory {
