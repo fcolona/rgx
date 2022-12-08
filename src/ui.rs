@@ -154,7 +154,8 @@ pub fn start_ui(
                         let selected_entry = entries.get(state.selected().unwrap() - 1).unwrap();
 
                         if !selected_entry.is_a_directory {
-                            let splits: Vec<&str> = new_rgx.split(&selected_entry.content).into_iter().collect();
+                            let splits: Vec<&str> =
+                                new_rgx.split(&selected_entry.content).into_iter().collect();
                             let mut spans_vec: Vec<Span> = Vec::new();
 
                             let mut i = 0;
@@ -175,10 +176,19 @@ pub fn start_ui(
 
                                 i = i + 1;
                             }
+                            if splits.len() == 1 {
+                                let span_raw1 = Span::raw(&selected_entry.content);
+                                spans_vec.push(span_raw1);
+                            }
 
                             let text = vec![Spans::from(spans_vec)];
 
                             paragraph = Paragraph::new(text)
+                                .block(Block::default().title("Preview").borders(Borders::ALL))
+                                .style(Style::default().fg(Color::White).bg(Color::Black))
+                                .wrap(Wrap { trim: true });
+                        } else {
+                            paragraph = Paragraph::new("")
                                 .block(Block::default().title("Preview").borders(Borders::ALL))
                                 .style(Style::default().fg(Color::White).bg(Color::Black))
                                 .wrap(Wrap { trim: true });
@@ -192,7 +202,8 @@ pub fn start_ui(
                         let selected_entry = entries.get(state.selected().unwrap() - 1).unwrap();
 
                         if !selected_entry.is_a_directory {
-                            let splits: Vec<&str> = new_rgx.split(&selected_entry.content).into_iter().collect();
+                            let splits: Vec<&str> =
+                                new_rgx.split(&selected_entry.content).into_iter().collect();
                             let mut spans_vec: Vec<Span> = Vec::new();
 
                             let mut i = 0;
@@ -213,10 +224,19 @@ pub fn start_ui(
 
                                 i = i + 1;
                             }
+                            if splits.len() == 1 {
+                                let span_raw1 = Span::raw(&selected_entry.content);
+                                spans_vec.push(span_raw1);
+                            }
 
                             let text = vec![Spans::from(spans_vec)];
 
                             paragraph = Paragraph::new(text)
+                                .block(Block::default().title("Preview").borders(Borders::ALL))
+                                .style(Style::default().fg(Color::White).bg(Color::Black))
+                                .wrap(Wrap { trim: true });
+                        } else {
+                            paragraph = Paragraph::new("")
                                 .block(Block::default().title("Preview").borders(Borders::ALL))
                                 .style(Style::default().fg(Color::White).bg(Color::Black))
                                 .wrap(Wrap { trim: true });
