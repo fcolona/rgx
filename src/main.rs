@@ -1,5 +1,11 @@
+#![feature(io_error_more)]
+#![allow(warnings, unused)]
+
 use std::{io, env, process};
-use rgx::ui::setup;
+use ui::setup;
+
+pub mod ui;
+mod service;
 
 fn main() -> Result<(), io::Error> {
     let args: Vec<String> = env::args().collect();
