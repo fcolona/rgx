@@ -310,6 +310,121 @@ pub fn start_ui(
                         stdout,
                     );
                 }
+                Key::Char('n') => {
+                    let selected_entry_index = state.selected().unwrap();
+
+                    let mut i = selected_entry_index;
+                    while i < entries.len() {
+                        let current_entry = entries.get(i).unwrap();
+
+                        if current_entry.matched_text.len() > 0
+                            || current_entry.content_matches.len() > 0
+                        {
+                            state.select(Some(i + 1));
+
+                            if !current_entry.is_a_directory {
+                                let splits: Vec<&str> =
+                                    new_rgx.split(&current_entry.content).into_iter().collect();
+                                let mut spans_vec: Vec<Span> = Vec::new();
+
+                                let mut i = 0;
+                                while i < splits.len() - 1 {
+                                    let span_raw1 = Span::raw(splits.get(i).unwrap().to_owned());
+                                    spans_vec.push(span_raw1);
+
+                                    let span_highlighted1 = Span::styled(
+                                        current_entry.content_matches.get(i).unwrap(),
+                                        Style::default()
+                                            .fg(Color::LightYellow)
+                                            .add_modifier(Modifier::BOLD),
+                                    );
+                                    spans_vec.push(span_highlighted1);
+
+                                    let span_raw2 =
+                                        Span::raw(splits.get(i + 1).unwrap().to_owned());
+                                    spans_vec.push(span_raw2);
+
+                                    i = i + 1;
+                                }
+                                if splits.len() == 1 {
+                                    let span_raw1 = Span::raw(&current_entry.content);
+                                    spans_vec.push(span_raw1);
+                                }
+
+                                let text = vec![Spans::from(spans_vec)];
+
+                                paragraph = Paragraph::new(text)
+                                    .block(Block::default().title("Preview").borders(Borders::ALL))
+                                    .style(Style::default().fg(Color::White).bg(Color::Black))
+                                    .wrap(Wrap { trim: true });
+                                break;
+                            } else {
+                                paragraph = Paragraph::new("")
+                                    .block(Block::default().title("Preview").borders(Borders::ALL))
+                                    .style(Style::default().fg(Color::White).bg(Color::Black))
+                                    .wrap(Wrap { trim: true });
+                                break;
+                            }
+                        }
+                        i = i + 1;
+                    }
+                }
+                Key::Char('N') => {
+                    let selected_entry_index = state.selected().unwrap() - 2;
+
+                    let mut i = selected_entry_index;
+                    while i > 0 {
+                        let current_entry = entries.get(i).unwrap();
+
+                        if current_entry.matched_text.len() > 0 || current_entry.content_matches.len() > 0 {                           state.select(Some(i + 1));
+
+                            if !current_entry.is_a_directory {
+                                let splits: Vec<&str> =
+                                    new_rgx.split(&current_entry.content).into_iter().collect();
+                                let mut spans_vec: Vec<Span> = Vec::new();
+
+                                let mut i = 0;
+                                while i < splits.len() - 1 {
+                                    let span_raw1 = Span::raw(splits.get(i).unwrap().to_owned());
+                                    spans_vec.push(span_raw1);
+
+                                    let span_highlighted1 = Span::styled(
+                                        current_entry.content_matches.get(i).unwrap(),
+                                        Style::default()
+                                            .fg(Color::LightYellow)
+                                            .add_modifier(Modifier::BOLD),
+                                    );
+                                    spans_vec.push(span_highlighted1);
+
+                                    let span_raw2 =
+                                        Span::raw(splits.get(i + 1).unwrap().to_owned());
+                                    spans_vec.push(span_raw2);
+
+                                    i = i + 1;
+                                }
+                                if splits.len() == 1 {
+                                    let span_raw1 = Span::raw(&current_entry.content);
+                                    spans_vec.push(span_raw1);
+                                }
+
+                                let text = vec![Spans::from(spans_vec)];
+
+                                paragraph = Paragraph::new(text)
+                                    .block(Block::default().title("Preview").borders(Borders::ALL))
+                                    .style(Style::default().fg(Color::White).bg(Color::Black))
+                                    .wrap(Wrap { trim: true });
+                                break;
+                            } else {
+                                paragraph = Paragraph::new("")
+                                    .block(Block::default().title("Preview").borders(Borders::ALL))
+                                    .style(Style::default().fg(Color::White).bg(Color::Black))
+                                    .wrap(Wrap { trim: true });
+                                break;
+                            }
+                        }
+                        i = i - 1;
+                    }
+                }
                 Key::Ctrl('h') => {
                     drop(stdin);
 
