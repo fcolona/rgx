@@ -246,6 +246,10 @@ pub fn start_ui(
                 Key::Char('g') => {
                     state.select(Some(0));
                 }
+                Key::Char('G') => {
+                    let last_entry_index = entries.len();
+                    state.select(Some(last_entry_index));
+                }
                 Key::Char('l') => {
                     if (state.selected().unwrap()) == 0 {
                         drop(stdin);
