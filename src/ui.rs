@@ -295,7 +295,7 @@ pub fn start_ui(
                 Key::Char('h') => {
                     drop(stdin);
 
-                    let full_path = &entries.get(state.selected().unwrap()).unwrap().path;
+                    let full_path = &entries.get(state.selected().unwrap() - 1).unwrap().path;
 
                     let dirs: Vec<&str> = full_path.split("/").collect();
 

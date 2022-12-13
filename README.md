@@ -47,7 +47,7 @@ CLI written in Rust to perform regex searches within files/directories through a
 - Use <kbd>j</kbd> to **go down an entry**
 - Use <kbd>k</kbd> to **go up an entry**
 - Use <kbd>g</kbd> to **go to the top entry**
-- Use <kbd>g</kbd> to **go to the bottom entry**
+- Use <kbd>G</kbd> to **go to the bottom entry**
 - Use <kbd>l</kbd> to **enter in a directory**
 - Use <kbd>h</kbd> to **return to a previous directory**
 - Use <kbd>n</kbd> to **search forwards to the next ocurrence**
